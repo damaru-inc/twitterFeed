@@ -1,0 +1,6 @@
+twitter.api.bearerToken:
+spring:
+  data:
+    mongodb:
+      uri:
+      database:

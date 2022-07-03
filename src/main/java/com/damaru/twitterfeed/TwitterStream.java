@@ -5,6 +5,7 @@ import com.twitter.clientlib.ApiException;
 import com.twitter.clientlib.JSON;
 import com.twitter.clientlib.TwitterCredentialsBearer;
 import com.twitter.clientlib.api.TwitterApi;
+import com.twitter.clientlib.model.Place;
 import com.twitter.clientlib.model.StreamingTweet;
 import com.twitter.clientlib.model.Tweet;
 import lombok.extern.slf4j.Slf4j;
@@ -47,7 +48,7 @@ public class TwitterStream implements ApplicationContextAware {
 
     private ApplicationContext context;
 
-    private static final int MAX_HITS = 1000;
+    private static final int MAX_HITS = 10_000;
     private int hits;
     private int misses;
     private Instant startTime;
@@ -65,39 +66,45 @@ public class TwitterStream implements ApplicationContextAware {
             "winnipeg",
             "vancouver");
 
-    static final Set<String> POLITICS_FILTER_WORDS = Set.of(
+    static final Set<String> POLITICS_FILTER_WORDS_1 = Set.of(
             "#cdnpoli",
             "#onpoli",
-            "delduca",
-            "del duca",
             "trudeau",
             "bergen",
-            "pollieve",
+            "pollievre",
             "fullerton",
-            "syed");
+            "convoy",
+            "freedom",
+            "canada day",
+            "satan"
+            );
+
+    static final Set<String> POLITICS_FILTER_WORDS = Set.of(
+            "convoy",
+            "candayconvoy",
+            "canadadayconvoy",
+            "ottawa",
+            "canada day"
+    );
 
 
     public void run() {
         startTime = Instant.now();
         FilteredTopic locations = new FilteredTopic("twitter-locations", PLACE_FILTER_WORDS);
         FilteredTopic politics = new FilteredTopic("twitter-politics", POLITICS_FILTER_WORDS);
-        List<FilteredTopic> filteredTopics = List.of(locations, politics);
+        List<FilteredTopic> filteredTopics = List.of(politics);
+        //List<FilteredTopic> filteredTopics = List.of(locations, politics);
         //TwitterCredentialsBearer credentials = new TwitterCredentialsBearer(System.getenv("TWITTER_BEARER_TOKEN"));
         TwitterCredentialsBearer credentials = new TwitterCredentialsBearer(twitterConfigProperties.getBearerToken());
         TwitterApi apiInstance = new TwitterApi();
         apiInstance.setTwitterCredentials(credentials);
         // Set the params values
-        Set<String> expansions = Set.of(); // Set<String> | A comma separated list of fields to
-        // expand.
-        Set<String> tweetFields = Set.of("text", "created_at", "lang"); // Set<String> | A comma
-        // separated list of Tweet
-        // fields to display.
-        Set<String> userFields = Set.of(); // Set<String> | A comma separated list of User fields to display.
-        Set<String> mediaFields = Set.of(); // Set<String> | A comma separated list of Media fields to display.
-        Set<String> placeFields = Set.of(); // Set<String> | A comma separated list of Place
-        // fields to
-        // display.
-        Set<String> pollFields = Set.of(); // Set<String> | A comma separated list of Poll fields to display.
+        Set<String> expansions = Set.of("author_id");
+        Set<String> tweetFields = Set.of("text", "created_at", "lang", "author_id", "source");
+        Set<String> userFields = Set.of("location", "name");
+        Set<String> mediaFields = Set.of();
+        Set<String> placeFields = Set.of("full_name", "country");
+        Set<String> pollFields = Set.of();
         Integer backfillMinutes = 0; // Integer | The number of minutes of backfill requested
         try {
             InputStream result = apiInstance.tweets()
@@ -112,8 +119,7 @@ public class TwitterStream implements ApplicationContextAware {
                 while (line != null) {
                     StreamingTweet streamingTweet = json.getGson().fromJson(line, localVarReturnType);
                     if (streamingTweet != null) {
-                        Tweet tweet = streamingTweet.getData();
-                        if (applyFilters(tweet, filteredTopics)) {
+                        if (applyFilters(streamingTweet, filteredTopics)) {
                             hits++;
                         } else {
                             misses++;
@@ -141,31 +147,35 @@ public class TwitterStream implements ApplicationContextAware {
 
     }
 
-    private boolean applyFilters(Tweet tweet, List<FilteredTopic> filterTopics) {
+    private boolean applyFilters(StreamingTweet streamingTweet, List<FilteredTopic> filterTopics) {
         boolean ret = false;
         for (FilteredTopic filterTopic : filterTopics) {
-            if (filter(tweet, filterTopic.getFilterStrings())) {
+            int score = filter(streamingTweet, filterTopic.getFilterStrings());
+            if (score > 1) {
                 filterTopic.incrementCount();
-                log.info("{}: {}", filterTopic.getCount(), filterTopic.getTopic());
+                //log.info("{}: {}", filterTopic.getCount(), filterTopic.getTopic());
                 ret = true;
-                eventProducer.send(filterTopic.getTopic(), tweet);
+                eventProducer.send(filterTopic.getTopic(), streamingTweet, score);
             }
         }
         return ret;
     }
-    boolean filter(Tweet tweet, Set<String> filterStrings) {
-        boolean ret = false;
-        if ("en".equals(tweet.getLang())) {
-            String content = tweet.getText().toLowerCase();
-            for (String filterWord : filterStrings) {
-                if (content.contains(filterWord)) {
-                    ret = true;
-                    break;
+
+    int filter(StreamingTweet streamingTweet, Set<String> filterStrings) {
+        int score = 0;
+        Tweet tweet = streamingTweet.getData();
+        if (tweet != null) {
+            if ("en".equals(tweet.getLang())) {
+                String content = tweet.getText().toLowerCase();
+                for (String filterWord : filterStrings) {
+                    if (content.contains(filterWord)) {
+                        score++;
+                    }
                 }
             }
         }
 
-        return ret;
+        return score;
     }
 
     private void shutdown(List<FilteredTopic> filterTopics) {
