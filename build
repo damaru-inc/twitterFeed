@@ -1,0 +1,5 @@
+./mvnw spring-boot:build-image -Dspring-boot.build-image.imageName=registry.digitalocean.com/damaru-inc/twitterfeed:v3
+
+# v1: hard-coded creds in application.yaml
+# v2: hard-coded in deployment.yaml env vars
+# v3: removed a log

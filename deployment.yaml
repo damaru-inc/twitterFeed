@@ -1,0 +1,32 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: twitterfeed
+  labels:
+    app: twitterfeed
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: twitterfeed
+  template:
+    metadata:
+      labels:
+        app: twitterfeed
+    spec:
+      containers:
+      - name: twitterfeed
+        image: registry.digitalocean.com/damaru-inc/twitterfeed:v3
+        env:
+        - name: SPRING_DATA_MONGODB_URI
+          valueFrom:
+            secretKeyRef:
+              name: twitterfeed-secrets
+              key: SPRING_DATA_MONGODB_URI
+        - name: SPRING_DATA_MONGODB_DATABASE
+          value: mongo-twitter
+        - name: TWITTER_API_BEARER_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: twitterfeed-secrets
+              key: TWITTER_API_BEARER_TOKEN

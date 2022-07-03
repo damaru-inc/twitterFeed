@@ -48,7 +48,7 @@ public class TwitterStream implements ApplicationContextAware {
 
     private ApplicationContext context;
 
-    private static final int MAX_HITS = 10_000;
+    private static final int MAX_HITS = 100_000;
     private int hits;
     private int misses;
     private Instant startTime;
@@ -66,7 +66,7 @@ public class TwitterStream implements ApplicationContextAware {
             "winnipeg",
             "vancouver");
 
-    static final Set<String> POLITICS_FILTER_WORDS_1 = Set.of(
+    static final Set<String> POLITICS_FILTER_WORDS = Set.of(
             "#cdnpoli",
             "#onpoli",
             "trudeau",
@@ -79,7 +79,7 @@ public class TwitterStream implements ApplicationContextAware {
             "satan"
             );
 
-    static final Set<String> POLITICS_FILTER_WORDS = Set.of(
+    static final Set<String> POLITICS_FILTER_WORDS_2 = Set.of(
             "convoy",
             "candayconvoy",
             "canadadayconvoy",
@@ -106,6 +106,7 @@ public class TwitterStream implements ApplicationContextAware {
         Set<String> placeFields = Set.of("full_name", "country");
         Set<String> pollFields = Set.of();
         Integer backfillMinutes = 0; // Integer | The number of minutes of backfill requested
+        log.info("Here we go....");
         try {
             InputStream result = apiInstance.tweets()
                     .sampleStream(expansions, tweetFields, userFields, mediaFields, placeFields, pollFields,
@@ -116,6 +117,7 @@ public class TwitterStream implements ApplicationContextAware {
                 }.getType();
                 BufferedReader reader = new BufferedReader(new InputStreamReader(result));
                 String line = reader.readLine();
+                //log.info(line);
                 while (line != null) {
                     StreamingTweet streamingTweet = json.getGson().fromJson(line, localVarReturnType);
                     if (streamingTweet != null) {
